@@ -513,3 +513,53 @@ button{font-family:inherit;cursor:pointer;}
 .squid-settle-row.win .val{color:var(--green);}
 .squid-settle-row.lose .val{color:var(--red);}
 .squid-settle-summary{text-align:center;font-size:13px;font-weight:700;color:#fbcfe8;margin-bottom:10px;}
+/* ============ 模式 Tab ============ */
+.mode-tabs{
+  display:flex;gap:8px;margin:0 0 20px;
+  padding:4px;background:var(--panel);
+  border:1px solid var(--border);border-radius:10px;
+  width:fit-content;
+}
+.mode-tab{
+  padding:9px 22px;border-radius:7px;
+  font-size:13px;font-weight:700;
+  border:none;background:transparent;color:var(--text-2);
+  transition:all .15s;
+}
+.mode-tab:hover{color:var(--text);}
+.mode-tab.active{
+  background:var(--gold);color:#000;
+  box-shadow:0 0 12px rgba(251,191,36,.4);
+}
+.mode-section{margin-bottom:10px;}
+
+.fee-note{
+  font-size:11px;color:var(--muted);
+  padding:3px 8px;border-radius:6px;
+  background:rgba(255,255,255,.05);
+}
+.mode-tag{
+  font-size:11px;padding:2px 8px;border-radius:6px;
+  background:var(--gold-soft);color:var(--gold);font-weight:700;
+}
+.mode-tag.real{
+  background:rgba(34,197,94,.15);color:var(--green);
+}
+
+/* 钱包连接成功状态 */
+.btn-wallet.connected{
+  background:var(--green);color:#fff;
+}
+.btn-wallet.connected:hover{background:#16a34a;}
+
+/* 充值输入 */
+#depositAmount{
+  width:100px;
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+
+/* 真人对战区余额面板 */
+#realSection .balance-block.real .balance-value{
+  color:var(--gold);
+}
