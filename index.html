@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tapeout Bracelet · Texas Hold'em</title>
 <link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
 </head>
 <body>
 
-<!-- 顶部导航 -->
 <nav class="topbar">
   <div class="topbar-left">
     <span class="logo">⚡ tapeoutbracelet</span>
@@ -26,177 +26,111 @@
   </div>
 </nav>
 
-<!-- 大厅 -->
 <main id="lobbyScreen" class="screen">
   <div class="lobby-container">
     <h1 class="lobby-title">Texas Hold'em</h1>
-    <p class="lobby-desc" data-i18n="lobbyDesc">
-      The whole table shuffles together, only you can open your hole cards,
-      and the contract pays out on receipts the whole table signed.
-    </p>
+    <p class="lobby-desc" data-i18n="lobbyDesc">The whole table shuffles together, only you can open your hole cards, and the contract pays out on receipts the whole table signed.</p>
 
-    <!-- 筹码总量面板 -->
-    <div class="balance-panel">
-      <div class="balance-block">
-        <div class="balance-label" data-i18n="practiceBalance">练习模式筹码</div>
-        <div class="balance-value" id="practiceBalance">0</div>
-        <div class="balance-sub" id="practiceBem">≈ 0 BEM</div>
-        <div class="balance-actions">
-          <select id="practiceRebuyAmount" class="small-select">
-            <option value="1000">+1,000</option>
-            <option value="5000" selected>+5,000</option>
-            <option value="10000">+10,000</option>
-            <option value="50000">+50,000</option>
-          </select>
-          <button class="mini-btn" id="practiceRebuyBtn" data-i18n="rebuy">Rebuy</button>
-          <button class="mini-btn ghost" id="practiceResetBtn" data-i18n="reset">Reset</button>
+    <!-- 模式切换 -->
+    <div class="mode-tabs">
+      <button class="mode-tab active" data-mode="practice" data-i18n="tabPractice">练习模式</button>
+      <button class="mode-tab" data-mode="real" data-i18n="tabReal">真人对战</button>
+    </div>
+
+    <!-- 练习模式区块 -->
+    <section id="practiceSection" class="mode-section">
+      <div class="balance-panel">
+        <div class="balance-block">
+          <div class="balance-label" data-i18n="practiceBalance">练习模式筹码</div>
+          <div class="balance-value" id="practiceBalance">0</div>
+          <div class="balance-sub" id="practiceBem">≈ 0 BEM</div>
+          <div class="balance-actions">
+            <select id="practiceRebuyAmount" class="small-select">
+              <option value="1000">+1,000</option>
+              <option value="5000" selected>+5,000</option>
+              <option value="10000">+10,000</option>
+              <option value="50000">+50,000</option>
+            </select>
+            <button class="mini-btn" id="practiceRebuyBtn" data-i18n="rebuy">Rebuy</button>
+            <button class="mini-btn ghost" id="practiceResetBtn" data-i18n="reset">Reset</button>
+          </div>
         </div>
       </div>
-      <div class="balance-block real">
-        <div class="balance-label" data-i18n="realBalance">对战场筹码</div>
-        <div class="balance-value" id="realBalance">0</div>
-        <div class="balance-sub" id="realBem">≈ 0 BEM</div>
-        <div class="balance-note" data-i18n="realBalanceNote">需连接钱包和 TapeOut 合约后可用</div>
+      <h2 class="section-heading" data-i18n="levelsHeading">Stake levels</h2>
+      <div class="level-list" id="practiceLevelList"></div>
+    </section>
+
+    <!-- 真人对战区块 -->
+    <section id="realSection" class="mode-section hidden">
+      <div class="balance-panel">
+        <div class="balance-block real">
+          <div class="balance-label" data-i18n="walletBem">钱包 BEM 余额</div>
+          <div class="balance-value" id="walletBemBalance">0</div>
+          <div class="balance-sub" id="walletAddress" data-i18n="notConnected">未连接</div>
+          <div class="balance-actions">
+            <button class="mini-btn" id="realConnectBtn" data-i18n="connectWallet">连接钱包</button>
+          </div>
+        </div>
+        <div class="balance-block real">
+          <div class="balance-label" data-i18n="realBalance">对战场筹码</div>
+          <div class="balance-value" id="realBalance">0</div>
+          <div class="balance-sub" id="realBem">≈ 0 BEM</div>
+          <div class="balance-actions">
+            <input type="number" id="depositAmount" class="small-select" placeholder="BEM" style="width:100px" min="1" step="1">
+            <button class="mini-btn" id="depositBtn" data-i18n="deposit">充值</button>
+            <span class="fee-note" data-i18n="depositFeeNote">2% 手续费</span>
+          </div>
+          <div class="balance-note" data-i18n="realBalanceNote">充值后可用于真人对战，离桌后退回钱包</div>
+        </div>
       </div>
-    </div>
-
-    <h2 class="section-heading" data-i18n="levelsHeading">Stake levels</h2>
-    <div class="level-list" id="levelList"></div>
-
-    <div class="custom-table">
-      <button class="custom-btn" id="customTableBtn">
-        <span>▸</span> <span data-i18n="customTable">Open a custom table (any blinds)</span>
-      </button>
-    </div>
+      <h2 class="section-heading" data-i18n="levelsHeading">Stake levels</h2>
+      <div class="level-list" id="realLevelList"></div>
+    </section>
 
     <div class="lobby-footer">
-      <p data-i18n="footer1">1 chip = 0.0001 BEM. A table deals its first hand once enough players are seated and every one of them pressed ready; a running table can be joined any time.</p>
+      <p data-i18n="footer1">1 chip = 0.0001 BEM. A table deals its first hand once enough players are seated and every one of them pressed ready.</p>
       <p data-i18n="footer2">The rake is taken only on hands that see a flop: 1% of the pot, capped at 1 big blind.</p>
       <p class="muted" data-i18n="footer3">No game server: the deck is encrypted and shuffled by every player, every message is signed, every hand is audited afterwards.</p>
     </div>
   </div>
 </main>
 
-<!-- 规则 -->
 <main id="rulesScreen" class="screen hidden">
   <div class="rules-container">
     <h1 class="lobby-title" data-i18n="rulesTitle">How the cards are dealt, and why it is fair</h1>
-    <p class="lobby-desc" data-i18n="rulesSubtitle">
-      No dealer, no dealing server. The deck is shuffled by every player at the table together,
-      only you can open your own hole cards, and every hand is audited afterwards.
-    </p>
-
-    <section class="rule-section">
-      <h2 data-i18n="rule1Title">1 · Dealing: nobody knows the order of the deck</h2>
-      <p data-i18n="rule1Body">
-        Each player generates a per-hand key and publishes its public half; all public keys combine
-        into the hand's joint key. The 52 cards start as public numbers, and from the button on
-        every player re-encrypts, permutes and broadcasts the deck. The final order is the
-        composition of everyone's shuffle — if one player is honest, the result is uniformly random.
-        Opening a card takes one decryption share from every player; your two cards are opened by
-        the others sending you their shares, and you add yours last, so only you see them.
-      </p>
-    </section>
-
-    <section class="rule-section">
-      <h2 data-i18n="rule2Title">2 · Audit: everyone can check afterwards</h2>
-      <p data-i18n="rule2Body">
-        When a hand ends everyone reveals their key. The table replays every shuffle and verifies
-        each one was a proper permutation; a cheater is named. With every key revealed the whole
-        deck is readable, folded cards included, so you can review everyone's cards in every hand.
-        Every message is signed by its sender.
-      </p>
-    </section>
-
-    <section class="rule-section">
-      <h2 data-i18n="rule3Title">3 · Chips, buy-ins, rake</h2>
-      <p data-i18n="rule3Body">
-        Every table has a buy-in range; pick any amount in it when you sit. You can top up
-        mid-session up to the maximum; busting means leaving. Rake is taken only on hands that
-        see a flop (no flop, no drop), as a percentage of the pot capped at a number of big
-        blinds, out of the main pot.
-      </p>
-    </section>
-
-    <section class="rule-section">
-      <h2 data-i18n="rule4Title">4 · Disconnecting</h2>
-      <p data-i18n="rule4Body">
-        No answer when it is your turn to bet: you fold, and you leave after the hand. No answer
-        while shuffling or dealing: the hand is void, the others get their chips back, and what
-        you had already put into the pot goes to them. Reloading the page does not lose your seat:
-        come back within 45 seconds and the page catches up.
-      </p>
-    </section>
-
-    <section class="rule-section">
-      <h2 data-i18n="rule5Title">5 · Squid table (N+3)</h2>
-      <p data-i18n="rule5Body">
-        The Squid table adds an on-table reward system on top of normal Texas Hold'em. Each round
-        has N+3 squids total. Win the first pot of a round to get 2 squids. Win any later pot to
-        get 1. Split pots produce no squid but add a pending +1 to the next won pot. Your 3rd,
-        5th and 7th squids are worth 2×, 3× and 4× base value. At the end of the round, players
-        who took no squid pay out to the ones who did — directly, not from the pot.
-      </p>
-    </section>
-
-    <section class="rule-section">
-      <h2 data-i18n="rule6Title">6 · What you are trusting</h2>
-      <p data-i18n="rule6Body">
-        Randomness: as long as one player is honest, the cards are random. No server and no
-        validator is trusted. Privacy of hole cards: opening a card needs every player's share.
-        Chips are held by the contract on chain and paid out only on signed receipts. What
-        remains is what every online table has: collusion between players seated together.
-      </p>
-    </section>
+    <p class="lobby-desc" data-i18n="rulesSubtitle">No dealer, no dealing server.</p>
+    <section class="rule-section"><h2 data-i18n="rule1Title">1 · Dealing</h2><p data-i18n="rule1Body">...</p></section>
+    <section class="rule-section"><h2 data-i18n="rule2Title">2 · Audit</h2><p data-i18n="rule2Body">...</p></section>
+    <section class="rule-section"><h2 data-i18n="rule3Title">3 · Chips, buy-ins, rake</h2><p data-i18n="rule3Body">...</p></section>
+    <section class="rule-section"><h2 data-i18n="rule4Title">4 · Disconnecting</h2><p data-i18n="rule4Body">...</p></section>
+    <section class="rule-section"><h2 data-i18n="rule5Title">5 · Squid table (N+3)</h2><p data-i18n="rule5Body">...</p></section>
+    <section class="rule-section"><h2 data-i18n="rule6Title">6 · What you are trusting</h2><p data-i18n="rule6Body">...</p></section>
   </div>
 </main>
 
-<!-- 我的战绩 -->
 <main id="myNumbersScreen" class="screen hidden">
   <div class="numbers-container">
     <h1 class="lobby-title" data-i18n="myNumbersTitle">My numbers</h1>
-
     <div class="numbers-summary">
-      <div class="num-block">
-        <div class="num-label" data-i18n="totalHands">Total hands</div>
-        <div class="num-value" id="numTotalHands">0</div>
-      </div>
-      <div class="num-block">
-        <div class="num-label" data-i18n="totalWins">Hands won</div>
-        <div class="num-value" id="numWins">0</div>
-      </div>
-      <div class="num-block">
-        <div class="num-label" data-i18n="winRate">Win rate</div>
-        <div class="num-value" id="numWinRate">0%</div>
-      </div>
-      <div class="num-block">
-        <div class="num-label" data-i18n="biggestPot">Biggest pot</div>
-        <div class="num-value" id="numBiggest">0</div>
-      </div>
-      <div class="num-block">
-        <div class="num-label" data-i18n="netProfit">Net profit</div>
-        <div class="num-value" id="numNet">0</div>
-      </div>
+      <div class="num-block"><div class="num-label" data-i18n="totalHands">Total hands</div><div class="num-value" id="numTotalHands">0</div></div>
+      <div class="num-block"><div class="num-label" data-i18n="totalWins">Hands won</div><div class="num-value" id="numWins">0</div></div>
+      <div class="num-block"><div class="num-label" data-i18n="winRate">Win rate</div><div class="num-value" id="numWinRate">0%</div></div>
+      <div class="num-block"><div class="num-label" data-i18n="biggestPot">Biggest pot</div><div class="num-value" id="numBiggest">0</div></div>
+      <div class="num-block"><div class="num-label" data-i18n="netProfit">Net profit</div><div class="num-value" id="numNet">0</div></div>
     </div>
-
     <h2 class="section-heading" data-i18n="sessionsHeading">Sessions</h2>
     <div class="sessions-table">
       <div class="session-row session-head">
-        <span data-i18n="colTable">Table</span>
-        <span data-i18n="colBlinds">Blinds</span>
-        <span data-i18n="colBuyIn">Buy-in</span>
-        <span data-i18n="colPnl">P&L</span>
-        <span data-i18n="colHands">Hands</span>
-        <span data-i18n="colStatus">Status</span>
+        <span data-i18n="colTable">Table</span><span data-i18n="colBlinds">Blinds</span>
+        <span data-i18n="colBuyIn">Buy-in</span><span data-i18n="colPnl">P&L</span>
+        <span data-i18n="colHands">Hands</span><span data-i18n="colStatus">Status</span>
       </div>
       <div id="sessionsBody"></div>
     </div>
-
     <button class="mini-btn ghost" id="resetNumbersBtn" data-i18n="resetNumbers">Reset numbers</button>
   </div>
 </main>
 
-<!-- 游戏 -->
 <main id="gameScreen" class="screen hidden">
   <div class="game-topbar">
     <button class="btn-back" id="backToLobbyBtn">← <span data-i18n="backToLobby">Lobby</span></button>
@@ -204,6 +138,8 @@
       <span id="gameLevelLabel">Nano 1/2</span>
       <span class="sep">·</span>
       <span id="gameHandLabel">Hand #1</span>
+      <span class="sep">·</span>
+      <span id="gameModeLabel" class="mode-tag">练习</span>
     </div>
     <div class="game-right">
       <span class="status-pill" id="gameWalletPill"><span class="dot"></span><span data-i18n="practiceMode">Practice mode</span></span>
@@ -323,9 +259,10 @@
 <div id="walletOverlay" class="overlay hidden">
   <div class="overlay-card">
     <h2 data-i18n="walletTitle">Connect Wallet</h2>
-    <p data-i18n="walletDesc">This is a practice mode. Real on-chain play needs TapeOut's on-chain contract — the wallet connection will be live in a future version.</p>
+    <p data-i18n="walletDesc">请用币安 Web3 钱包或 MetaMask 连接 BNB Chain。</p>
     <div class="overlay-actions">
-      <button class="btn-primary" id="walletCloseBtn" data-i18n="confirm">OK</button>
+      <button class="btn-primary" id="walletConnectBtn" data-i18n="connectWallet">连接钱包</button>
+      <button class="btn-secondary" id="walletCloseBtn" data-i18n="confirm">取消</button>
     </div>
   </div>
 </div>
@@ -337,6 +274,7 @@
 <script src="js/evaluator.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/storage.js"></script>
+<script src="js/wallet.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>
