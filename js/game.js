@@ -15,6 +15,7 @@ const G = {
   bigBlind: 2,
   tableMode: 'nano',
   tableLabel: 'Nano',
+  gameMode: 'practice', // 'practice' | 'real'
   handNumber: 0,
   totalPlayers: 6,
   gameOver: false,
@@ -45,6 +46,7 @@ const LEVELS = [
 ];
 
 const CHIP_TO_BEM = 0.0001;
+const DEPOSIT_FEE_RATE = 0.02;
 
 function $(id){ return document.getElementById(id); }
 function t(k,v){ return window.PokerI18n.t(k,v); }
@@ -63,7 +65,7 @@ function log(msg, cls){
 function clearLog(){ const e = $("logArea"); if(e) e.innerHTML = ""; }
 
 /* =========================================================
-   导航切换
+   导航
    ========================================================= */
 function showScreen(name){
   ["lobbyScreen","rulesScreen","myNumbersScreen","gameScreen"].forEach(function(id){
@@ -90,6 +92,10 @@ function refreshBalanceUI(){
   const rEl = $("realBalance"), rBem = $("realBem");
   if(rEl) rEl.textContent = fmtNum(r);
   if(rBem) rBem.textContent = "≈ " + toBem(r) + " BEM";
+  // 钱包余额 UI（由 wallet.js 维护）
+  if(window.PokerWallet && PokerWallet.isConnected()){
+    PokerWallet.updateUI();
+  }
 }
 
 /* =========================================================
@@ -107,7 +113,6 @@ function renderNumbers(){
     tn.textContent = (s.netGain >= 0 ? "+" : "") + fmtNum(s.netGain);
     tn.style.color = s.netGain >= 0 ? 'var(--green)' : 'var(--red)';
   }
-  /* sessions 表格 */
   const body = $("sessionsBody");
   if(!body) return;
   body.innerHTML = "";
@@ -124,8 +129,9 @@ function renderNumbers(){
     row.className = "session-row";
     const pnlCls = rec.pnl >= 0 ? "pos" : "neg";
     const pnlText = (rec.pnl >= 0 ? "+" : "") + fmtNum(rec.pnl);
+    const modeTag = rec.mode === 'real' ? ' · 真人对战' : ' · 练习';
     row.innerHTML =
-      '<span>' + rec.table + '</span>' +
+      '<span>' + rec.table + modeTag + '</span>' +
       '<span>' + rec.blinds + '</span>' +
       '<span>' + fmtNum(rec.buyIn) + '</span>' +
       '<span class="' + pnlCls + '">' + pnlText + '</span>' +
@@ -139,7 +145,13 @@ function renderNumbers(){
    大厅渲染
    ========================================================= */
 function renderLobby(){
-  const list = $("levelList");
+  renderLevelList("practiceLevelList", "practice");
+  renderLevelList("realLevelList", "real");
+  refreshBalanceUI();
+}
+
+function renderLevelList(containerId, mode){
+  const list = $(containerId);
   if(!list) return;
   list.innerHTML = "";
   LEVELS.forEach(function(lv){
@@ -155,26 +167,45 @@ function renderLobby(){
       '<div class="level-meta">' + buyInText + '</div>' +
       '<div class="level-meta">' + startText + '</div>' +
       '<button class="level-open">' + t("openTable") + '</button>';
-    row.querySelector(".level-open").onclick = function(){ openLevel(lv); };
+    row.querySelector(".level-open").onclick = function(){ openLevel(lv, mode); };
     list.appendChild(row);
   });
-  refreshBalanceUI();
 }
 
 /* =========================================================
    开局
    ========================================================= */
-function openLevel(lv){
-  /* 检查练习筹码 */
-  let chips = PokerStorage.getPracticeChips();
-  if(chips < lv.buyMin){
-    if(!confirm(t("practiceBalance") + " " + fmtNum(chips) + " < " + fmtNum(lv.buyMin) + ". " + t("rebuy") + "?")){
+function openLevel(lv, mode){
+  G.gameMode = mode;
+
+  if(mode === 'practice'){
+    let chips = PokerStorage.getPracticeChips();
+    if(chips < lv.buyMin){
+      if(!confirm(t("practiceBalance") + " " + fmtNum(chips) + " < " + fmtNum(lv.buyMin) + ". " + t("rebuy") + "?")){
+        return;
+      }
+      chips = lv.buyMin;
+      PokerStorage.setPracticeChips(chips);
+    }
+    const buyIn = Math.min(lv.buyMax, chips);
+    PokerStorage.setPracticeChips(chips - buyIn);
+    G.sessionBuyIn = buyIn;
+  } else {
+    // 真人对战
+    if(!window.PokerWallet || !PokerWallet.isConnected()){
+      alert(t("depositNeedConnect"));
+      $("walletOverlay").classList.remove("hidden");
       return;
     }
-    chips = lv.buyMin;
-    PokerStorage.setPracticeChips(chips);
+    let realChips = PokerStorage.getRealChips();
+    if(realChips < lv.buyMin){
+      alert('对战场筹码不足，请先充值 BEM');
+      return;
+    }
+    const buyIn = Math.min(lv.buyMax, realChips);
+    PokerStorage.setRealChips(realChips - buyIn);
+    G.sessionBuyIn = buyIn;
   }
-  const buyIn = Math.min(lv.buyMax, chips);
 
   G.tableMode = lv.key;
   G.tableLabel = lv.name;
@@ -183,16 +214,13 @@ function openLevel(lv){
   G.lastRaiseAmount = lv.bb;
   G.totalPlayers = 6;
   G.squid.enabled = (lv.key === "squid");
-  G.sessionBuyIn = buyIn;
   G.sessionHands = 0;
-
-  /* 人类玩家：从练习筹码中扣除买入 */
-  PokerStorage.setPracticeChips(chips - buyIn);
+  G.sessionBuyIn = G.sessionBuyIn || 0;
 
   const human = PokerAvatars.HUMAN;
   G.players = [{
     id:0, name:human.name, emoji:human.emoji, bg:human.bg,
-    isHuman:true, chips:buyIn,
+    isHuman:true, chips:G.sessionBuyIn,
     holeCards:[], folded:false, allIn:false, currentBet:0,
     totalContributed:0, needsToAct:false,
     position:"", positionKey:"", lastAction:"", styleKey:null,
@@ -231,6 +259,17 @@ function openLevel(lv){
   $("gameScreen").classList.remove("hidden");
   const gl = $("gameLevelLabel");
   if(gl) gl.textContent = lv.name + " " + lv.sb + "/" + lv.bb;
+  const gml = $("gameModeLabel");
+  if(gml){
+    gml.textContent = mode === 'real' ? '真人对战' : '练习';
+    gml.classList.toggle('real', mode === 'real');
+  }
+  const gwp = $("gameWalletPill");
+  if(gwp){
+    gwp.innerHTML = mode === 'real'
+      ? '<span class="dot" style="background:#22c55e;"></span><span>' + PokerWallet.getAddress().slice(0,6) + '...' + '</span>'
+      : '<span class="dot"></span><span>' + t("practiceMode") + '</span>';
+  }
 
   startNewHand();
 }
@@ -688,13 +727,18 @@ function showRebuy(){
   $("rebuyMsg").textContent = t("rebuyMsg") + " (" + fmtNum(amount) + " " + t("chips") + " ≈ " + toBem(amount) + " BEM)";
   $("rebuyGameBtn").onclick = function(){
     $("rebuyOverlay").classList.add("hidden");
-    /* 从练习筹码扣，如果不够就补 */
-    let pc = PokerStorage.getPracticeChips();
-    if(pc < amount){
-      PokerStorage.addPracticeChips(amount - pc);
-      pc = amount;
+    if(G.gameMode === 'practice'){
+      let pc = PokerStorage.getPracticeChips();
+      if(pc < amount){ PokerStorage.addPracticeChips(amount - pc); pc = amount; }
+      PokerStorage.setPracticeChips(pc - amount);
+    } else {
+      let rc = PokerStorage.getRealChips();
+      if(rc < amount){
+        alert('对战场筹码不足，请返回大厅充值');
+        return;
+      }
+      PokerStorage.setRealChips(rc - amount);
     }
-    PokerStorage.setPracticeChips(pc - amount);
     G.players[0].chips = amount;
     G.sessionBuyIn += amount;
     PokerAudio.play('chip');
@@ -708,22 +752,24 @@ function showRebuy(){
   };
 }
 
-/* 离桌：把剩余筹码退回练习余额，记录一条 session */
 function backToLobby(){
   stopTurnTimer();
   const me = G.players[0];
   if(me){
-    /* 退回剩余筹码到练习余额 */
-    PokerStorage.addPracticeChips(me.chips);
-    /* 记录 session：P&L = 剩余 - 买入 */
     const pnl = me.chips - G.sessionBuyIn;
+    if(G.gameMode === 'practice'){
+      PokerStorage.addPracticeChips(me.chips);
+    } else {
+      PokerStorage.addRealChips(me.chips);
+    }
     PokerStorage.addSession({
       table: G.tableLabel,
       blinds: G.smallBlind + "/" + G.bigBlind,
       buyIn: G.sessionBuyIn,
       pnl: pnl,
       hands: G.sessionHands,
-      status: 'left'
+      status: 'left',
+      mode: G.gameMode
     });
   }
   G.gameOver = true;
@@ -1022,6 +1068,9 @@ function updateTimerUI(){
   else { f.classList.remove("warn"); t2.classList.remove("warn"); }
 }
 
+/* =========================================================
+   事件绑定
+   ========================================================= */
 document.addEventListener("DOMContentLoaded", function(){
   const saved = (function(){
     try { return localStorage.getItem('neon_holdem_lang') || 'zh'; }
@@ -1037,19 +1086,34 @@ document.addEventListener("DOMContentLoaded", function(){
     renderNumbers();
   });
 
-  /* 导航 */
+  // 导航
   document.querySelectorAll(".nav-link").forEach(function(a){
     a.addEventListener("click", function(){
       const nav = a.getAttribute("data-nav");
-      if(nav === "lobby") showScreen("lobby");
-      else if(nav === "rules") showScreen("rules");
-      else if(nav === "myNumbers") showScreen("myNumbers");
+      showScreen(nav);
+    });
+  });
+
+  // 模式 Tab
+  document.querySelectorAll(".mode-tab").forEach(function(tab){
+    tab.addEventListener("click", function(){
+      document.querySelectorAll(".mode-tab").forEach(function(x){ x.classList.remove("active"); });
+      tab.classList.add("active");
+      const mode = tab.getAttribute("data-mode");
+      if(mode === "practice"){
+        $("practiceSection").classList.remove("hidden");
+        $("realSection").classList.add("hidden");
+      } else {
+        $("practiceSection").classList.add("hidden");
+        $("realSection").classList.remove("hidden");
+        if(window.PokerWallet) PokerWallet.updateUI();
+      }
     });
   });
 
   renderLobby();
 
-  /* 练习筹码补码 / 重置 */
+  // 练习筹码补码 / 重置
   const prb = $("practiceRebuyBtn");
   if(prb) prb.onclick = function(){
     const amt = parseInt($("practiceRebuyAmount").value, 10);
@@ -1063,6 +1127,61 @@ document.addEventListener("DOMContentLoaded", function(){
       refreshBalanceUI();
     }
   };
+
+  // 真人对战：连接钱包
+  const cw = $("connectWalletBtn");
+  const rc = $("realConnectBtn");
+  const doConnect = async function(){
+    try {
+      const res = await PokerWallet.connect();
+      if(res){
+        $("walletOverlay").classList.add("hidden");
+        refreshBalanceUI();
+      } else {
+        alert(t("connectFailed"));
+      }
+    } catch(e){
+      console.error(e);
+      alert(t("connectFailed"));
+    }
+  };
+  if(cw) cw.onclick = doConnect;
+  if(rc) rc.onclick = doConnect;
+
+  // 充值
+  const db = $("depositBtn");
+  if(db) db.onclick = async function(){
+    if(!PokerWallet.isConnected()){
+      alert(t("depositNeedConnect"));
+      return;
+    }
+    const amt = parseFloat($("depositAmount").value);
+    if(!amt || amt <= 0){ alert(t("depositNeedAmount")); return; }
+    if(amt < 1){ alert(t("depositMin")); return; }
+    try {
+      const res = await PokerWallet.depositBem(amt);
+      if(res && res.netChips > 0){
+        const cur = PokerStorage.getRealChips();
+        PokerStorage.setRealChips(cur + res.netChips);
+        refreshBalanceUI();
+        $("depositAmount").value = "";
+        alert(t("depositSuccess", { chips: res.netChips.toLocaleString() }));
+      }
+    } catch(err){
+      console.error(err);
+      if(err.message === 'insufficient') alert(t("insufficientBem"));
+      else if(err.message === 'min-amount') alert(t("depositMin"));
+      else alert(t("depositFailed"));
+    }
+  };
+
+  // 钱包弹窗
+  const wcb = $("walletConnectBtn");
+  if(wcb) wcb.onclick = doConnect;
+  const wcl = $("walletCloseBtn");
+  if(wcl) wcl.onclick = function(){ $("walletOverlay").classList.add("hidden"); };
+
+  // 战绩重置
   const rnb = $("resetNumbersBtn");
   if(rnb) rnb.onclick = function(){
     if(confirm(t("confirmResetNumbers"))){
@@ -1071,17 +1190,13 @@ document.addEventListener("DOMContentLoaded", function(){
     }
   };
 
+  // 离桌
   const back = $("backToLobbyBtn");
   if(back) back.onclick = function(){ if(confirm(t("leaveConfirm"))) backToLobby(); };
-
-  const cw = $("connectWalletBtn");
-  if(cw) cw.onclick = function(){ $("walletOverlay").classList.remove("hidden"); };
-  const wc = $("walletCloseBtn");
-  if(wc) wc.onclick = function(){ $("walletOverlay").classList.add("hidden"); };
-
   const ngb = $("newGameBtn");
   if(ngb) ngb.onclick = function(){ $("gameOverOverlay").classList.add("hidden"); backToLobby(); };
 
+  // 加注面板
   const rs = $("raiseSlider"); if(rs) rs.addEventListener("input", updateRaiseAmount);
   const crb = $("cancelRaiseBtn");
   if(crb) crb.onclick = function(){ $("raisePanel").classList.add("hidden"); };
